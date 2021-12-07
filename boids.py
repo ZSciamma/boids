@@ -5,8 +5,8 @@ import numpy as np
 
 RANGE = 20.0
 SPEED = 20.0
-VELOCITY_STEADY_FRAMES = 10 # Boid changes its velocity every n frames
-GOALS = [] # Points boids aim towards at certain frames
+VELOCITY_STEADY_FRAMES = 5 # Boid changes its velocity every n frames
+GOALS = {0: (0, 20, 20), 30: (0, -20, -20), 240: (20, 20, 20)} # Points boids aim towards at certain frames
 
 # Returns length of a vector
 def length(vector):
@@ -27,10 +27,18 @@ class BoidNavigationSystem:
         self.boids = boids
     
     def calculateAcceleration(self, boid):
+        goal = self.goalFollowing(boid)
         ca = self.collisionAvoidance(boid)
         vm = self.velocityMatching(boid)
         fc = self.flockCentering(boid)
-        return self.combineBehaviours(ca, vm, fc)
+        return self.combineBehaviours(goal, ca, vm, fc)
+    
+    # Try fly towards the goal
+    def goalFollowing(self, boid):
+        goal = boid.getGoal()
+        accel = goal - boid.position
+        print("Goal: " + str(goal))
+        return normalize(accel)
     
     # Try fly away from all neighbours
     def collisionAvoidance(self, boid):
@@ -93,10 +101,10 @@ class BoidNavigationSystem:
         return normalize(totalPos / float(numFriends))
     
     # Combines independent boid desires into one acceleration
-    def combineBehaviours(self, ca, vm, fc):
+    def combineBehaviours(self, goal, ca, vm, fc):
         #kCa, kVm, kFc = 0.2, 0.4, 0.95
-        kCa, kVm, kFc = 0.1, 0.4, 0.95
-        combined = (kCa*ca + kVm*vm + kFc*fc)
+        kGoal, kCa, kVm, kFc = 1.0, 0.1, 0.4, 0.95
+        combined = (kGoal*goal + kCa*ca + kVm*vm + kFc*fc)
         
         return normalize(combined)
     
@@ -119,7 +127,7 @@ class Boid:
     # Takes accel, acceleration over the next dt seconds
     # Calculates and saves next pos and vel so they can be used
     def saveNextState(self, accel, dt):
-        #accel *= 100
+        accel *= 10
         # suvat: s = ut + (at^2)/2
         disp = self.velocity * dt + (accel * (dt ** 2)) / 2
         print("disp: " + str(disp))
@@ -137,6 +145,14 @@ class Boid:
     def setCurFrame(self):
         self.body.location = self.position.tolist()
         self.body.keyframe_insert(data_path='location')
+        
+    # Sets the goal of the boid from the current frame onwards
+    # goal is a point towards which the boid will navigate
+    def setNewGoal(self, goal):
+        self.goal = goal
+        
+    def getGoal(self):
+        return self.goal
         
     # Jumps to the next state
     def setNextState(self):
@@ -167,6 +183,10 @@ def createBoids(numBoids, frames, dt):
         for boid in boids:
             boid.setCurFrame()
             
+            newGoal = GOALS.get(frame)
+            if newGoal:
+                boid.setNewGoal(newGoal)
+            
             # Change velocity if we've reached assessment frame
             if frame % VELOCITY_STEADY_FRAMES == 0:
                 accel = navSystem.calculateAcceleration(boid)
@@ -183,5 +203,5 @@ def createBoids(numBoids, frames, dt):
 
 if __name__ == '__main__':
     deleteAllBoids()
-    createBoids(30, 120, 1.0/6)
+    createBoids(30, 480, 1.0/6)
     
